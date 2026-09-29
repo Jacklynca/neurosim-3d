@@ -1,0 +1,2008 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>NEURO-SIM 3D · Neurona Biológica vs Neurona Artificial</title>
+
+<!-- Tipografías: Orbitron (títulos), Rajdhani (datos), Inter (texto) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   VARIABLES DE DISEÑO  —  "cyberpunk científico"
+   Contraste verificado: texto #E8F4FF sobre #03040C ≈ 17:1 (AAA)
+   ============================================================ */
+:root{
+  --bg:        #03040c;
+  --bg-soft:   #070b18;
+  --cian:      #00ffff;
+  --magenta:   #ff00ff;
+  --verde:     #00ff88;
+  --amarillo:  #ffd700;
+  --azul:      #4d9bff;
+  --naranja:   #ff7a00;
+  --texto:     #e8f4ff;
+  --texto-dim: #9fb3cc;
+  --glass:     rgba(8,14,30,0.78);
+  --borde:     rgba(0,255,255,0.22);
+  --borde-bio: rgba(0,255,136,0.35);
+  --borde-art: rgba(255,0,255,0.35);
+  --radius:    16px;
+  --shadow:    0 10px 40px rgba(0,0,0,0.65);
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+
+html,body{
+  width:100%; height:100%;
+  overflow:hidden;
+  background:var(--bg);
+  color:var(--texto);
+  font-family:'Inter',system-ui,-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+
+canvas#webgl{
+  position:fixed; inset:0;
+  width:100%; height:100%;
+  display:block;
+  z-index:0;
+  touch-action:none;   /* OrbitControls gestiona los gestos */
+}
+
+/* ---------- Utilidad glassmorphism ---------- */
+.glass{
+  background:var(--glass);
+  backdrop-filter:blur(14px) saturate(140%);
+  -webkit-backdrop-filter:blur(14px) saturate(140%);
+  border:1px solid var(--borde);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+#topbar{
+  position:fixed; top:0; left:0; right:0;
+  z-index:20;
+  padding:14px 18px 10px;
+  text-align:center;
+  pointer-events:none;
+  background:linear-gradient(to bottom, rgba(3,4,12,0.92) 0%, rgba(3,4,12,0.55) 60%, transparent 100%);
+}
+#topbar h1{
+  font-family:'Orbitron',sans-serif;
+  font-weight:900;
+  font-size:clamp(18px,3.2vw,34px);
+  letter-spacing:.14em;
+  color:#fff;
+  text-shadow:0 0 18px rgba(0,255,255,.55), 0 0 42px rgba(255,0,255,.28);
+}
+#topbar .subtitle{
+  margin-top:4px;
+  font-family:'Rajdhani',sans-serif;
+  font-weight:600;
+  font-size:clamp(11px,1.5vw,15px);
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--texto-dim);
+}
+#topbar .subtitle span{ color:var(--magenta); }
+
+/* Efecto glitch sutil (aparece en ráfagas cortas, nunca dificulta la lectura) */
+.glitch{ position:relative; display:inline-block; }
+.glitch::before,
+.glitch::after{
+  content:attr(data-text);
+  position:absolute; left:0; top:0;
+  width:100%;
+  opacity:0;
+  pointer-events:none;
+}
+.glitch::before{ color:var(--magenta); clip-path:inset(0 0 58% 0); animation:glitchA 5.2s infinite steps(1,end); }
+.glitch::after { color:var(--cian);    clip-path:inset(58% 0 0 0); animation:glitchB 4.4s infinite steps(1,end); }
+@keyframes glitchA{
+  0%,93%,100%{ opacity:0; transform:translate(0,0); }
+  94%{ opacity:.9; transform:translate(-3px,-2px); }
+  96%{ opacity:.75; transform:translate(2px,1px); }
+  98%{ opacity:0; }
+}
+@keyframes glitchB{
+  0%,90%,100%{ opacity:0; transform:translate(0,0); }
+  91%{ opacity:.85; transform:translate(3px,2px); }
+  95%{ opacity:.6; transform:translate(-2px,-1px); }
+  97%{ opacity:0; }
+}
+
+/* ============================================================
+   PANEL DE INSTRUCCIONES (colapsable)
+   ============================================================ */
+#hint{
+  position:fixed;
+  top:96px; left:16px;
+  z-index:18;
+  width:268px;
+  padding:12px 14px;
+  font-size:12.5px;
+  line-height:1.55;
+  transition:transform .35s ease, opacity .35s ease;
+}
+#hint-toggle{
+  width:100%;
+  background:none;
+  border:none;
+  color:var(--cian);
+  font-family:'Rajdhani',sans-serif;
+  font-weight:700;
+  font-size:13px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  text-align:left;
+  cursor:pointer;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+}
+#hint-toggle .chev{ transition:transform .3s ease; font-size:11px; }
+#hint.collapsed #hint-toggle .chev{ transform:rotate(-90deg); }
+#hint-body{
+  list-style:none;
+  margin-top:10px;
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  color:var(--texto-dim);
+  max-height:220px;
+  overflow:hidden;
+  transition:max-height .35s ease, opacity .3s ease, margin .35s ease;
+}
+#hint.collapsed #hint-body{ max-height:0; opacity:0; margin-top:0; }
+#hint-body b{ color:var(--texto); font-weight:600; }
+#hint-body li::before{ content:'▸ '; color:var(--verde); }
+
+/* ============================================================
+   PANEL LATERAL DE INFORMACIÓN
+   ============================================================ */
+#panel{
+  position:fixed;
+  top:104px; right:16px;
+  width:372px;
+  max-height:calc(100vh - 300px);
+  padding:20px 20px 22px;
+  overflow-y:auto;
+  z-index:25;
+  opacity:0;
+  transform:translateX(115%);
+  transition:transform .45s cubic-bezier(.22,1,.36,1), opacity .35s ease;
+  pointer-events:none;
+}
+#panel.open{ opacity:1; transform:translateX(0); pointer-events:auto; }
+#panel::-webkit-scrollbar{ width:6px; }
+#panel::-webkit-scrollbar-thumb{ background:rgba(0,255,255,.3); border-radius:3px; }
+
+#panel-close{
+  position:absolute; top:12px; right:12px;
+  width:32px; height:32px;
+  border-radius:50%;
+  border:1px solid var(--borde);
+  background:rgba(0,0,0,.35);
+  color:var(--texto);
+  font-size:14px;
+  cursor:pointer;
+  transition:background .2s, transform .2s, border-color .2s;
+}
+#panel-close:hover{ background:rgba(255,0,255,.22); border-color:var(--magenta); transform:rotate(90deg); }
+
+.p-badge{
+  display:inline-block;
+  font-family:'Rajdhani',sans-serif;
+  font-weight:700;
+  font-size:10.5px;
+  letter-spacing:.16em;
+  padding:4px 11px;
+  border-radius:999px;
+  margin-bottom:12px;
+}
+.p-badge.bio{ color:#062; background:var(--verde); box-shadow:0 0 18px rgba(0,255,136,.45); }
+.p-badge.art{ color:#301; background:var(--magenta); box-shadow:0 0 18px rgba(255,0,255,.45); }
+
+.p-title{
+  font-family:'Orbitron',sans-serif;
+  font-size:19px;
+  font-weight:700;
+  letter-spacing:.04em;
+  margin-bottom:10px;
+  line-height:1.25;
+}
+.p-func{
+  font-size:13.5px;
+  line-height:1.65;
+  color:#cfe4ff;
+  padding-bottom:14px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.p-h3{
+  font-family:'Rajdhani',sans-serif;
+  font-size:11.5px;
+  font-weight:700;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--cian);
+  margin:16px 0 8px;
+}
+.p-list{ list-style:none; display:flex; flex-direction:column; gap:7px; }
+.p-list li{
+  font-size:12.5px;
+  line-height:1.55;
+  color:var(--texto-dim);
+  padding-left:16px;
+  position:relative;
+}
+.p-list li::before{
+  content:'◆';
+  position:absolute; left:0; top:1px;
+  font-size:8px;
+  color:var(--amarillo);
+}
+.p-energy{
+  margin-top:18px;
+  padding:13px 14px;
+  border-radius:12px;
+  background:linear-gradient(135deg, rgba(255,215,0,.09), rgba(255,122,0,.05));
+  border:1px solid rgba(255,215,0,.3);
+}
+.p-energy-head{
+  font-family:'Rajdhani',sans-serif;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--amarillo);
+  margin-bottom:6px;
+}
+.p-energy p{ font-size:12.5px; line-height:1.6; color:#ffe9b8; }
+
+/* ============================================================
+   TOOLTIP
+   ============================================================ */
+#tooltip{
+  position:fixed;
+  z-index:40;
+  padding:6px 12px;
+  border-radius:8px;
+  background:rgba(3,6,18,.92);
+  border:1px solid var(--borde);
+  color:var(--cian);
+  font-family:'Rajdhani',sans-serif;
+  font-weight:600;
+  font-size:12.5px;
+  letter-spacing:.06em;
+  pointer-events:none;
+  opacity:0;
+  transform:translate(-50%,-150%);
+  transition:opacity .15s ease;
+  white-space:nowrap;
+}
+#tooltip.on{ opacity:1; }
+
+/* ============================================================
+   ZONA INFERIOR: BOTONES + MÉTRICAS
+   ============================================================ */
+#ui-bottom{
+  position:fixed;
+  left:0; right:0; bottom:0;
+  z-index:22;
+  padding:10px 12px 12px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+  pointer-events:none;
+  background:linear-gradient(to top, rgba(3,4,12,.95) 0%, rgba(3,4,12,.6) 55%, transparent 100%);
+}
+#controls, #metrics{ pointer-events:auto; }
+
+#controls{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+
+.ctrl{
+  font-family:'Rajdhani',sans-serif;
+  font-weight:700;
+  font-size:13px;
+  letter-spacing:.06em;
+  padding:10px 18px;
+  border-radius:12px;
+  cursor:pointer;
+  color:var(--texto);
+  background:rgba(8,14,30,.85);
+  border:1px solid var(--borde);
+  transition:transform .18s ease, box-shadow .25s ease, background .25s ease, border-color .25s ease;
+  white-space:nowrap;
+}
+.ctrl:hover{ transform:translateY(-2px); }
+.ctrl:focus-visible{ outline:2px solid var(--cian); outline-offset:2px; }
+.ctrl.bio:hover{ border-color:var(--verde); box-shadow:0 0 22px rgba(0,255,136,.4); }
+.ctrl.art:hover{ border-color:var(--magenta); box-shadow:0 0 22px rgba(255,0,255,.4); }
+.ctrl.cmp:hover{ border-color:var(--amarillo); box-shadow:0 0 22px rgba(255,215,0,.4); }
+.ctrl.active.bio{ background:rgba(0,255,136,.16); border-color:var(--verde); box-shadow:0 0 26px rgba(0,255,136,.45); }
+.ctrl.active.art{ background:rgba(255,0,255,.16); border-color:var(--magenta); box-shadow:0 0 26px rgba(255,0,255,.45); }
+.ctrl.active.cmp{ background:rgba(255,215,0,.16); border-color:var(--amarillo); box-shadow:0 0 26px rgba(255,215,0,.45); }
+
+/* ---------- Panel comparativo ---------- */
+#metrics{
+  width:min(1180px,100%);
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+  padding:12px 14px;
+  border-radius:var(--radius);
+  background:var(--glass);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+  border:1px solid var(--borde);
+  transition:border-color .4s ease, box-shadow .4s ease;
+}
+#metrics.live{
+  border-color:rgba(255,215,0,.42);
+  box-shadow:0 0 34px rgba(255,215,0,.14);
+}
+.metric{ display:flex; flex-direction:column; gap:6px; min-width:0; }
+.m-head{
+  display:flex; justify-content:space-between; align-items:center; gap:6px;
+  font-family:'Rajdhani',sans-serif;
+  font-size:10.5px; font-weight:700;
+  letter-spacing:.09em; text-transform:uppercase;
+  color:var(--texto-dim);
+}
+.m-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.m-ratio{
+  font-family:'Orbitron',sans-serif;
+  font-size:10px;
+  color:var(--amarillo);
+  opacity:.35;
+  transition:opacity .3s ease;
+  flex:0 0 auto;
+}
+#metrics.live .m-ratio{ opacity:1; text-shadow:0 0 12px rgba(255,215,0,.7); }
+
+.m-row{ display:flex; align-items:center; gap:7px; }
+.m-tag{
+  font-family:'Orbitron',sans-serif;
+  font-size:8.5px; font-weight:700;
+  letter-spacing:.06em;
+  padding:2px 5px; border-radius:4px;
+  flex:0 0 auto;
+}
+.m-tag.bio{ color:#032; background:var(--verde); }
+.m-tag.art{ color:#301; background:var(--magenta); }
+
+.m-bar{
+  flex:1 1 auto;
+  height:6px;
+  border-radius:99px;
+  background:rgba(255,255,255,.07);
+  overflow:hidden;
+  min-width:24px;
+}
+.m-bar i{
+  display:block;
+  height:100%;
+  width:var(--w,0%);
+  border-radius:99px;
+  transition:width 1.1s cubic-bezier(.22,1,.36,1);
+}
+.m-bar.bio i{ background:linear-gradient(90deg,#00ff88,#00ffd0); box-shadow:0 0 12px rgba(0,255,136,.65); }
+.m-bar.art i{ background:linear-gradient(90deg,#ff00ff,#ff7a00); box-shadow:0 0 12px rgba(255,0,255,.65); }
+.m-val{
+  font-family:'Rajdhani',sans-serif;
+  font-size:10.5px; font-weight:600;
+  color:var(--texto-dim);
+  flex:0 0 auto;
+  min-width:64px;
+  text-align:right;
+}
+#metrics.live .m-val{ color:var(--texto); }
+
+/* ============================================================
+   OVERLAY DE INICIO
+   ============================================================ */
+#intro{
+  position:fixed; inset:0;
+  z-index:60;
+  display:flex; align-items:center; justify-content:center;
+  background:radial-gradient(ellipse at center, rgba(8,14,36,.82), rgba(3,4,12,.97));
+  backdrop-filter:blur(6px);
+  transition:opacity .6s ease, visibility .6s ease;
+}
+#intro.hidden{ opacity:0; visibility:hidden; }
+.intro-card{
+  max-width:520px;
+  margin:20px;
+  padding:34px 30px 28px;
+  text-align:center;
+}
+.intro-card h2{
+  font-family:'Orbitron',sans-serif;
+  font-size:clamp(20px,4vw,30px);
+  font-weight:900;
+  letter-spacing:.12em;
+  color:#fff;
+  text-shadow:0 0 24px rgba(0,255,255,.6), 0 0 60px rgba(255,0,255,.3);
+  margin-bottom:14px;
+}
+.intro-card p{
+  font-size:14px; line-height:1.7; color:var(--texto-dim); margin-bottom:22px;
+}
+.intro-card p b{ color:var(--verde); font-weight:600; }
+.intro-card p b + b{ color:var(--magenta); }
+#start-btn{
+  font-family:'Orbitron',sans-serif;
+  font-size:13px; font-weight:700;
+  letter-spacing:.12em;
+  padding:14px 30px;
+  border-radius:14px;
+  cursor:pointer;
+  color:#031018;
+  background:linear-gradient(135deg,var(--cian),var(--verde));
+  border:none;
+  box-shadow:0 0 30px rgba(0,255,255,.45);
+  transition:transform .2s ease, box-shadow .25s ease;
+}
+#start-btn:hover{ transform:translateY(-2px); box-shadow:0 0 46px rgba(0,255,255,.75); }
+#start-btn:focus-visible{ outline:2px solid #fff; outline-offset:3px; }
+.intro-card small{
+  display:block; margin-top:18px; font-size:11px; color:#6e8299; letter-spacing:.05em;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width:1100px){
+  #metrics{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:860px){
+  #hint{ width:230px; top:88px; left:10px; font-size:11.5px; padding:10px 12px; }
+  #panel{
+    top:auto; left:10px; right:10px; bottom:10px;
+    width:auto;
+    max-height:54vh;
+    transform:translateY(130%);
+  }
+  #panel.open{ transform:translateY(0); }
+  .ctrl{ font-size:11.5px; padding:9px 12px; }
+  #metrics{ padding:10px; gap:8px; }
+  .m-val{ min-width:56px; font-size:10px; }
+}
+@media (max-width:560px){
+  #topbar{ padding:10px 12px 8px; }
+  #hint{ width:180px; font-size:10.5px; }
+  #metrics{ grid-template-columns:1fr; max-height:34vh; overflow-y:auto; }
+  .m-val{ min-width:60px; }
+}
+@media (prefers-reduced-motion:reduce){
+  *{ animation-duration:.001ms !important; transition-duration:.05ms !important; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- Lienzo WebGL -->
+<canvas id="webgl" aria-label="Escena 3D de una neurona biológica y una neurona artificial"></canvas>
+
+<!-- ===================== HEADER ===================== -->
+<header id="topbar">
+  <h1 class="glitch" data-text="NEURO-SIM 3D">NEURO-SIM 3D</h1>
+  <p class="subtitle">🧠 Neurona Biológica <span>vs</span> Neurona Artificial 🤖</p>
+</header>
+
+<!-- ===================== INSTRUCCIONES ===================== -->
+<div id="hint" class="glass">
+  <button id="hint-toggle" aria-expanded="true" aria-controls="hint-body">
+    <span>🖱️ Cómo explorar</span><span class="chev">▾</span>
+  </button>
+  <ul id="hint-body">
+    <li><b>Arrastra</b> para rotar · <b>rueda o pinza</b> para zoom</li>
+    <li><b>Clic</b> en cualquier componente 3D para abrir su ficha</li>
+    <li>Los <b>3 botones inferiores</b> animan el flujo de información</li>
+  </ul>
+</div>
+
+<!-- ===================== PANEL DE INFORMACIÓN ===================== -->
+<aside id="panel" class="glass" role="dialog" aria-modal="false" aria-label="Información del componente" aria-hidden="true">
+  <button id="panel-close" aria-label="Cerrar panel de información">✕</button>
+  <div id="panel-body"></div>
+</aside>
+
+<!-- ===================== TOOLTIP ===================== -->
+<div id="tooltip" role="status" aria-live="polite"></div>
+
+<!-- ===================== ZONA INFERIOR ===================== -->
+<div id="ui-bottom">
+  <div id="controls">
+    <button id="btn-bio" class="ctrl bio" aria-pressed="false">🔋 Activar flujo biológico</button>
+    <button id="btn-art" class="ctrl art" aria-pressed="false">⚡ Activar flujo artificial</button>
+    <button id="btn-cmp" class="ctrl cmp" aria-pressed="false">⚖️ Comparar en paralelo</button>
+  </div>
+  <div id="metrics" aria-label="Métricas comparativas"></div>
+</div>
+
+<!-- ===================== OVERLAY DE INICIO ===================== -->
+<div id="intro">
+  <div class="intro-card glass">
+    <h2>NEURO-SIM 3D</h2>
+    <p>
+      Explora en 3D las diferencias y similitudes entre una <b>neurona biológica</b>
+      y una <b>neurona artificial</b>. Haz clic en cada componente para descubrir su
+      función y su consumo energético real.
+    </p>
+    <button id="start-btn">🚀 Iniciar experiencia</button>
+    <small>Arrastra para rotar · Clic en los componentes · Botones para animar</small>
+  </div>
+</div>
+
+<!-- ============================================================
+     IMPORT MAP — Three.js vía CDN (ES Modules, sin build step)
+     ============================================================ -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+/* ================================================================
+   NEURO-SIM 3D
+   ------------------------------------------------------------------
+   ESTRUCTURA DEL MÓDULO
+     0. Utilidades (PRNG determinista, geometría, etiquetas)
+     1. Datos científicos (INFO)
+     2. Escena, cámara, luces, partículas de fondo, post-proceso
+     3. Modelado de la neurona biológica
+     4. Modelado de la neurona artificial
+     5. Interacción (hover, clic, panel, foco de cámara)
+     6. Animaciones de flujo (biológico / artificial / comparativo)
+     7. Panel comparativo de métricas
+     8. Bucle de render y redimensionado
+   ================================================================ */
+
+import * as THREE from 'three';
+import { OrbitControls }    from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer }   from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }       from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }  from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass }       from 'three/addons/postprocessing/OutputPass.js';
+
+
+/* ================================================================
+   0. UTILIDADES
+   ================================================================ */
+
+/** PRNG determinista (mulberry32): mismo layout en cada recarga. */
+function mulberry32(seed){
+  let a = seed;
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rand = mulberry32(20240617);
+
+/** Paleta centralizada (nunca hardcodear colores sueltos). */
+const COL = {
+  bio:      0x00ff88,   // verde neón  → neurona biológica
+  bioDark:  0x00b377,
+  cian:     0x00ffff,   // cian        → detalles / mielina / núcleo
+  amarillo: 0xffd700,   // amarillo    → nodos de Ranvier, terminales, pesos
+  magenta:  0xff00ff,   // magenta     → neurona artificial
+  azul:     0x4d9bff,   // azul        → entradas artificiales
+  naranja:  0xff7a00,   // naranja     → backpropagation
+  rojo:     0xff4d6d    // rojo        → pesos negativos (solo decorativo)
+};
+
+/** Crea un tubo a partir de una lista de puntos (Catmull-Rom). */
+function tubeFromPoints(points, radius, material, tubular = 24, radial = 8){
+  const curve = new THREE.CatmullRomCurve3(points);
+  const geo   = new THREE.TubeGeometry(curve, tubular, radius, radial, false);
+  return new THREE.Mesh(geo, material);
+}
+
+/** Textura de texto en canvas (para etiquetas 3D y números animados). */
+function makeTextTexture(text, color, fontPx = 90, w = 512, h = 128){
+  const c   = document.createElement('canvas');
+  c.width   = w;
+  c.height  = h;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  ctx.font         = `700 ${fontPx}px Orbitron, Rajdhani, Inter, sans-serif`;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor  = color;
+  ctx.shadowBlur   = 24;
+  ctx.fillStyle    = color;
+  ctx.fillText(text, w / 2, h / 2);
+  ctx.fillText(text, w / 2, h / 2);           // doble pasada = más glow
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace  = THREE.SRGBColorSpace;
+  tex.anisotropy  = 4;
+  return tex;
+}
+
+/** Etiqueta flotante (Sprite) siempre legible sobre la geometría. */
+function makeLabel(text, color, opts = {}){
+  const { fontPx = 90, scale = 1, opacity = 1, canvasW = 512, canvasH = 128 } = opts;
+  const tex = makeTextTexture(text, color, fontPx, canvasW, canvasH);
+  const mat = new THREE.SpriteMaterial({
+    map: tex, transparent: true, opacity,
+    depthTest: false, depthWrite: false
+  });
+  const s = new THREE.Sprite(mat);
+  s.scale.set(2.4 * scale * (canvasW / 512), 0.6 * scale * (canvasH / 128), 1);
+  s.renderOrder = 999;
+  return s;
+}
+
+/** Textura de resplandor radial (para halos aditivos). */
+const GLOW_TEX = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0.0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.25, 'rgba(255,255,255,0.55)');
+  g.addColorStop(0.6, 'rgba(255,255,255,0.12)');
+  g.addColorStop(1.0, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+
+/** Añade un halo luminoso (sprite aditivo) a un grupo. */
+function addGlow(parent, position, color, scale = 1.4, opacity = 0.8){
+  const mat = new THREE.SpriteMaterial({
+    map: GLOW_TEX, color, transparent: true, opacity,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  const s = new THREE.Sprite(mat);
+  s.position.copy(position);
+  s.scale.set(scale, scale, 1);
+  parent.add(s);
+  return s;
+}
+
+
+/* ================================================================
+   1. DATOS CIENTÍFICOS
+   ----------------------------------------------------------------
+   Cifras con rangos cuando la literatura no es unánime.
+   ================================================================ */
+
+const INFO = {
+
+  /* ---------- NEURONA BIOLÓGICA ---------- */
+  dendritas: {
+    nombre: 'Dendritas', emoji: '🌿', sistema: 'bio',
+    funcion: 'Reciben las señales sinápticas de otras neuronas y las conducen hacia el soma.',
+    caracteristicas: [
+      'Ramificación múltiple: forman el árbol dendrítico',
+      'Miles de espinas dendríticas amplían la superficie receptiva',
+      'Respuesta graduada: suman entradas en el espacio y en el tiempo'
+    ],
+    consumo: '≈10⁻¹² J por potencial postsináptico (ATP para las bombas iónicas). Rango típico: 10⁻¹²–10⁻¹¹ J según el tipo de sinapsis.'
+  },
+
+  soma: {
+    nombre: 'Soma (cuerpo celular)', emoji: '🟢', sistema: 'bio',
+    funcion: 'Integra todas las señales de entrada y sostiene el metabolismo celular.',
+    caracteristicas: [
+      'Diámetro típico: 10–100 μm',
+      'Contiene el núcleo, mitocondrias y orgánulos',
+      'El cono axónico actúa como "zona de disparo" del potencial de acción'
+    ],
+    consumo: 'El cerebro humano consume ≈20 W para ≈8,6 × 10¹⁰ neuronas ⇒ ≈0,23 nW por neurona de media (reparto aproximado, muy variable).'
+  },
+
+  nucleo: {
+    nombre: 'Núcleo', emoji: '🔵', sistema: 'bio',
+    funcion: 'Control genético: dirige la síntesis de proteínas y enzimas de la neurona.',
+    caracteristicas: [
+      'Contiene el ADN y el nucléolo (fábrica de ribosomas)',
+      'No participa directamente en la transmisión eléctrica',
+      'Su actividad es de mantenimiento continuo (basal)'
+    ],
+    consumo: 'Mantenimiento basal continuo: la síntesis de proteínas y el transporte axonal son procesos permanentes que consumen ATP de forma sostenida.'
+  },
+
+  axon: {
+    nombre: 'Axón', emoji: '➖', sistema: 'bio',
+    funcion: 'Transmite el potencial de acción desde el cono axónico hasta los botones terminales.',
+    caracteristicas: [
+      'Longitud muy variable: de micrómetros hasta ≈1 m (motoneuronas)',
+      'Diámetro: 1–20 μm',
+      'Conducción "todo o nada" (ley del todo o nada)'
+    ],
+    consumo: 'La bomba Na⁺/K⁺ ATPasa consume ≈50 % de la energía de la neurona. Cifras habituales: 10⁹–10¹⁰ moléculas de ATP/s en neuronas muy activas (varía mucho según el tipo celular).'
+  },
+
+  mielina: {
+    nombre: 'Vaina de mielina', emoji: '🧊', sistema: 'bio',
+    funcion: 'Aísla eléctricamente el axón y acelera la conducción hasta ≈120 m/s.',
+    caracteristicas: [
+      'Vaina lipídica formada por células de Schwann (SNP) u oligodendrocitos (SNC)',
+      'Fuerza la conducción saltatoria entre nodos',
+      'Su degradación causa enfermedades desmielinizantes'
+    ],
+    consumo: 'La conducción saltatoria es ≈100× más eficiente que una fibra amielínica del mismo diámetro: se abren muchos menos canales iónicos y se gasta menos ATP.'
+  },
+
+  nodos: {
+    nombre: 'Nodos de Ranvier', emoji: '🟡', sistema: 'bio',
+    funcion: 'Puntos donde se regenera el potencial de acción: base de la conducción saltatoria.',
+    caracteristicas: [
+      'Interrupciones de ≈1 μm en la vaina de mielina',
+      'Densidad altísima de canales de Na⁺ dependientes de voltaje (hasta ~10⁴ canales/μm²)',
+      'El potencial "salta" de nodo en nodo'
+    ],
+    consumo: 'Menor gasto iónico que la conducción continua, porque los canales solo se abren en los nodos y no a lo largo de todo el axón.'
+  },
+
+  terminales: {
+    nombre: 'Terminales sinápticas', emoji: '🔘', sistema: 'bio',
+    funcion: 'Liberan neurotransmisores en la hendidura sináptica al llegar el potencial de acción.',
+    caracteristicas: [
+      'Botones axonales con decenas a cientos de vesículas sinápticas',
+      'Liberación dependiente de la entrada de Ca²⁺',
+      'Cada botón puede formar varias sinapsis'
+    ],
+    consumo: '≈10⁴ moléculas de ATP por vesícula reciclada (recaptación de neurotransmisor, bombeo de Ca²⁺ y reciclaje de membrana).'
+  },
+
+  sinapsis: {
+    nombre: 'Sinapsis', emoji: '🔗', sistema: 'bio',
+    funcion: 'Conecta neuronas y transmite o modula la señal entre ellas.',
+    caracteristicas: [
+      'Cada neurona forma ≈1.000–10.000 sinapsis',
+      'El cerebro humano contiene del orden de 10¹⁴–10¹⁵ sinapsis',
+      'Puede ser química (mayoritaria, con retardo de milisegundos) o eléctrica'
+    ],
+    consumo: 'La transmisión sináptica es uno de los mayores consumidores de energía del cerebro: recaptación de neurotransmisores y homeostasis iónica.'
+  },
+
+  /* ---------- NEURONA ARTIFICIAL (PERCEPTRÓN) ---------- */
+  entradas: {
+    nombre: 'Entradas (x₁…xₙ)', emoji: '📥', sistema: 'art',
+    funcion: 'Reciben los datos de entrada. Equivalente funcional a las dendritas.',
+    caracteristicas: [
+      'Vector x = [x₁, x₂, …, xₙ]',
+      'n puede ir de 2 a millones (p. ej. 784 píxeles de MNIST)',
+      'Normalmente valores normalizados o estandarizados'
+    ],
+    consumo: '≈0,1 nJ por operación en CPU estándar (rango 0,05–1 nJ según arquitectura y precisión numérica).'
+  },
+
+  pesos: {
+    nombre: 'Pesos sinápticos (w₁…wₙ)', emoji: '⚖️', sistema: 'art',
+    funcion: 'Ponderan la importancia de cada entrada. Equivalen a la fuerza sináptica biológica.',
+    caracteristicas: [
+      'Parámetros aprendidos durante el entrenamiento',
+      'En FP32 ocupan 4 bytes cada uno',
+      'Se actualizan mediante descenso de gradiente',
+      'Pueden ser positivos (excitatorios) o negativos (inhibitorios)'
+    ],
+    consumo: 'El acceso a memoria suele dominar el coste: leer el peso puede costar más que multiplicarlo. Rango citado: ≈0,1–1 nJ por MAC en CPU, ≈0,1 nJ en GPU, ≈0,01 nJ en TPU (muy dependiente del nodo tecnológico).'
+  },
+
+  sumatoria: {
+    nombre: 'Sumatoria ponderada (Σ)', emoji: '∑', sistema: 'art',
+    funcion: 'Integra las entradas multiplicadas por sus pesos: z = Σ wᵢxᵢ + b.',
+    caracteristicas: [
+      'Es un producto punto (dot product)',
+      'Operación altamente paralelizable: núcleo de GPU y TPU',
+      'Equivale a la integración sináptica del soma biológico'
+    ],
+    consumo: '≈1 nJ por suma en CPU; ≈0,1 nJ en GPU; ≈0,01 nJ en TPU (órdenes de magnitud aproximados según el proceso de fabricación).'
+  },
+
+  activacion: {
+    nombre: 'Función de activación', emoji: '📈', sistema: 'art',
+    funcion: 'Introduce no-linealidad: sin ella, una red profunda equivaldría a una sola capa lineal.',
+    caracteristicas: [
+      'ReLU, Sigmoid, Tanh, GELU, Leaky ReLU…',
+      'ReLU es la más usada y la más económica de calcular',
+      'Sigmoid/Tanh saturan y ralentizan el entrenamiento'
+    ],
+    consumo: '≈0,5 nJ por operación en CPU. ReLU (un simple max(0, x)) es la más eficiente; Sigmoid y Tanh requieren exponenciales.'
+  },
+
+  sesgo: {
+    nombre: 'Sesgo (bias)', emoji: '🎚️', sistema: 'art',
+    funcion: 'Desplaza la función de activación: ajusta el umbral de disparo de la neurona.',
+    caracteristicas: [
+      'Un parámetro adicional por neurona',
+      'Equivale al umbral de disparo del soma biológico',
+      'Sin sesgo, la frontera de decisión queda forzada a pasar por el origen'
+    ],
+    consumo: 'Coste despreciable: una suma adicional por neurona en cada pase.'
+  },
+
+  salida: {
+    nombre: 'Salida (ŷ)', emoji: '📤', sistema: 'art',
+    funcion: 'Transmite el resultado a la siguiente capa. Equivalente al axón biológico.',
+    caracteristicas: [
+      'ŷ = f(z), donde f es la función de activación',
+      'En la capa final puede ser una probabilidad (softmax)',
+      'Se propaga a todas las neuronas de la capa siguiente'
+    ],
+    consumo: 'Dominado por el coste de la función de activación más el almacenamiento del resultado en memoria.'
+  },
+
+  backprop: {
+    nombre: 'Backpropagation', emoji: '🔄', sistema: 'art',
+    funcion: 'Ajusta los pesos para minimizar el error: es el mecanismo de aprendizaje.',
+    caracteristicas: [
+      'Aplica la regla de la cadena capa por capa',
+      'Solo ocurre durante el entrenamiento, no en inferencia',
+      'Requiere guardar las activaciones intermedias'
+    ],
+    consumo: '≈3× el coste del forward pass (valor aproximado; depende de la implementación y del tamaño del lote).'
+  }
+};
+
+
+/* ================================================================
+   2. ESCENA, CÁMARA, LUCES, POST-PROCESO
+   ================================================================ */
+
+const canvas   = document.getElementById('webgl');
+const renderer = new THREE.WebGLRenderer({
+  canvas, antialias: true, powerPreference: 'high-performance'
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x03040c);
+scene.fog        = new THREE.FogExp2(0x03040c, 0.008);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 600);
+camera.position.set(0, 9, 32);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping  = true;
+controls.dampingFactor  = 0.06;
+controls.minDistance    = 5;
+controls.maxDistance    = 95;
+controls.maxPolarAngle  = Math.PI * 0.86;
+controls.target.set(0, 0, 0);
+
+/* ---------- Iluminación cinematográfica: key + fill + backlight ---------- */
+scene.add(new THREE.HemisphereLight(0x2a4a7a, 0x04040e, 1.15));
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 2.3);
+keyLight.position.set(14, 20, 16);
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(COL.cian, 1.5);
+fillLight.position.set(-20, 7, 13);
+scene.add(fillLight);
+
+const backLight = new THREE.DirectionalLight(COL.magenta, 1.7);
+backLight.position.set(-8, 12, -20);
+scene.add(backLight);
+
+// Luces de acento sobre cada neurona (refuerzan la identidad cromática)
+const bioLight = new THREE.PointLight(COL.bio, 90, 30, 2);
+bioLight.position.set(-9.5, 1, 4);
+scene.add(bioLight);
+
+const artLight = new THREE.PointLight(COL.magenta, 90, 30, 2);
+artLight.position.set(9.5, 1, 4);
+scene.add(artLight);
+
+/* ---------- Fondo: partículas tipo "datos neuronales" ---------- */
+const starField = (() => {
+  const N    = 1500;
+  const geo  = new THREE.BufferGeometry();
+  const pos  = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++){
+    pos[i * 3]     = (rand() - 0.5) * 96;
+    pos[i * 3 + 1] = (rand() - 0.5) * 54;
+    pos[i * 3 + 2] = (rand() - 0.5) * 54 - 12;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({
+    color: 0x66ccff, size: 0.16, transparent: true, opacity: 0.75,
+    blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+  });
+  const pts = new THREE.Points(geo, mat);
+  scene.add(pts);
+  return pts;
+})();
+
+/* ---------- Post-proceso: bloom para el efecto neón ---------- */
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.72,   // strength
+  0.55,   // radius
+  0.62    // threshold
+);
+composer.addPass(bloomPass);
+composer.addPass(new OutputPass());
+
+
+/* ================================================================
+   REGISTRO DE COMPONENTES INTERACTIVOS
+   ----------------------------------------------------------------
+   Cada componente es un THREE.Group cuyo subárbol se registra como
+   "clicable". Guardamos también sus materiales para poder atenuarlos.
+   ================================================================ */
+
+const pickables     = [];              // objetos raycastables
+const compMaterials = new Map();       // key -> Set<Material>
+const compGroups    = new Map();       // key -> THREE.Object3D (para el foco de cámara)
+
+function registerComponent(object, key){
+  compGroups.set(key, object);
+
+  const mats = new Set();
+  object.traverse(o => {
+    if (o.isMesh || o.isSprite || o.isLine || o.isLineSegments || o.isPoints){
+      o.userData.infoKey = key;
+      pickables.push(o);
+      const m = o.material;
+      if (m) (Array.isArray(m) ? m : [m]).forEach(mm => mats.add(mm));
+    }
+  });
+
+  // Pre-activamos la transparencia UNA sola vez (evita recompilar shaders al hacer clic)
+  mats.forEach(m => {
+    m.userData.baseOpacity   = m.opacity;
+    m.userData.baseDepthWrite = m.depthWrite;
+    m.userData.baseEmissive  = (m.emissiveIntensity !== undefined) ? m.emissiveIntensity : null;
+    m.transparent = true;
+    m.needsUpdate = true;
+  });
+
+  compMaterials.set(key, mats);
+}
+
+
+/* ================================================================
+   3. NEURONA BIOLÓGICA  (izquierda, verde neón + cian)
+   ================================================================ */
+
+const bioRoot = new THREE.Group();
+bioRoot.position.set(-9.5, 0, 0);
+scene.add(bioRoot);
+
+/** Guardamos las trayectorias de las dendritas para la animación de flujo. */
+const dendritePaths = [];
+
+(function buildBioNeuron(){
+
+  /* ---------- 3.1 DENDRITAS ---------- */
+  const gDend   = new THREE.Group();
+  const matDend = new THREE.MeshStandardMaterial({
+    color: COL.bio, emissive: COL.bio, emissiveIntensity: 0.55,
+    roughness: 0.4, metalness: 0.25
+  });
+
+  const N_PRIM = 7;
+  for (let i = 0; i < N_PRIM; i++){
+    const u     = i / (N_PRIM - 1);
+    const yaw   = (u - 0.5) * Math.PI * 0.9;          // ±81°  → abanico hacia -X
+    const pitch = (rand() - 0.5) * 1.2;
+
+    const dir = new THREE.Vector3(
+      -Math.cos(pitch) * Math.cos(yaw),
+       Math.sin(pitch),
+       Math.cos(pitch) * Math.sin(yaw)
+    ).normalize();
+
+    const L   = 3.4 + rand() * 1.6;
+    const pts = [];
+    for (let s = 0; s <= 4; s++){
+      const t = s / 4;
+      const p = dir.clone().multiplyScalar(1.15 + t * L);
+      p.x += (rand() - 0.5) * 0.55 * t;
+      p.y += (rand() - 0.5) * 0.70 * t;
+      p.z += (rand() - 0.5) * 0.55 * t;
+      pts.push(p);
+    }
+    dendritePaths.push(pts);
+    gDend.add(tubeFromPoints(pts, 0.125, matDend, 26, 8));
+
+    // Ramificaciones secundarias en la punta
+    const tip = pts[pts.length - 1];
+    for (let b = 0; b < 3; b++){
+      const bd = dir.clone()
+        .add(new THREE.Vector3((rand() - 0.5) * 1.6, (rand() - 0.5) * 1.6, (rand() - 0.5) * 1.6))
+        .normalize();
+      const bp = [tip.clone()];
+      for (let s = 1; s <= 2; s++){
+        const p = tip.clone().add(bd.clone().multiplyScalar(s * (0.55 + rand() * 0.4)));
+        p.x += (rand() - 0.5) * 0.25;
+        p.y += (rand() - 0.5) * 0.25;
+        p.z += (rand() - 0.5) * 0.25;
+        bp.push(p);
+      }
+      gDend.add(tubeFromPoints(bp, 0.06, matDend, 16, 6));
+    }
+  }
+  registerComponent(gDend, 'dendritas');
+  bioRoot.add(gDend);
+
+  /* ---------- 3.2 SOMA ---------- */
+  const gSoma   = new THREE.Group();
+  const matSoma = new THREE.MeshStandardMaterial({
+    color: 0x0affa0, emissive: 0x00cc66, emissiveIntensity: 0.5,
+    roughness: 0.25, metalness: 0.15,
+    transparent: true, opacity: 0.5, depthWrite: false   // deja ver el núcleo
+  });
+  gSoma.add(new THREE.Mesh(new THREE.SphereGeometry(1.3, 48, 32), matSoma));
+
+  // Retícula de membrana (solo estética)
+  const matShell = new THREE.MeshBasicMaterial({
+    color: COL.bio, wireframe: true, transparent: true, opacity: 0.15
+  });
+  gSoma.add(new THREE.Mesh(new THREE.SphereGeometry(1.38, 22, 16), matShell));
+  registerComponent(gSoma, 'soma');
+  bioRoot.add(gSoma);
+
+  /* ---------- 3.3 NÚCLEO ---------- */
+  const gNucleo   = new THREE.Group();
+  const matNucleo = new THREE.MeshStandardMaterial({
+    color: COL.cian, emissive: COL.cian, emissiveIntensity: 1.3, roughness: 0.3
+  });
+  gNucleo.add(new THREE.Mesh(new THREE.SphereGeometry(0.62, 32, 24), matNucleo));
+
+  const matNucleolo = new THREE.MeshStandardMaterial({
+    color: 0xffffff, emissive: 0xaaffff, emissiveIntensity: 1.0
+  });
+  const nucleolo = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), matNucleolo);
+  nucleolo.position.set(0.22, 0.16, 0.22);
+  gNucleo.add(nucleolo);
+  registerComponent(gNucleo, 'nucleo');
+  bioRoot.add(gNucleo);
+
+  /* ---------- 3.4 AXÓN ---------- */
+  const gAxon   = new THREE.Group();
+  const matAxon = new THREE.MeshStandardMaterial({
+    color: 0x00e0a0, emissive: 0x00b377, emissiveIntensity: 0.6,
+    roughness: 0.45, metalness: 0.3
+  });
+  const axon = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 8.2, 16, 1, true), matAxon);
+  axon.rotation.z = Math.PI / 2;
+  axon.position.set(5.3, 0, 0);        // ocupa x ∈ [1.2 , 9.4]
+  gAxon.add(axon);
+  registerComponent(gAxon, 'axon');
+  bioRoot.add(gAxon);
+
+  /* ---------- 3.5 VAINA DE MIELINA ---------- */
+  const gMielina   = new THREE.Group();
+  const matMielina = new THREE.MeshStandardMaterial({
+    color: COL.cian, emissive: 0x00aacc, emissiveIntensity: 0.45,
+    roughness: 0.25, metalness: 0.5, transparent: true, opacity: 0.85
+  });
+  const SEG_LEN = 0.85, GAP = 0.40, START = 1.95;
+  for (let i = 0; i < 6; i++){
+    const x0  = START + i * (SEG_LEN + GAP);
+    const seg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.30, 0.30, SEG_LEN, 20, 1, true), matMielina
+    );
+    seg.rotation.z = Math.PI / 2;
+    seg.position.set(x0 + SEG_LEN / 2, 0, 0);
+    gMielina.add(seg);
+  }
+  registerComponent(gMielina, 'mielina');
+  bioRoot.add(gMielina);
+
+  /* ---------- 3.6 NODOS DE RANVIER ---------- */
+  const gNodos   = new THREE.Group();
+  const matNodos = new THREE.MeshStandardMaterial({
+    color: COL.amarillo, emissive: COL.amarillo, emissiveIntensity: 1.6, roughness: 0.3
+  });
+  for (let i = 0; i < 5; i++){
+    const x   = START + i * (SEG_LEN + GAP) + SEG_LEN + GAP / 2;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.055, 8, 24), matNodos);
+    ring.rotation.y = Math.PI / 2;
+    ring.position.set(x, 0, 0);
+    gNodos.add(ring);
+  }
+  registerComponent(gNodos, 'nodos');
+  bioRoot.add(gNodos);
+
+  /* ---------- 3.7 TERMINALES SINÁPTICAS ---------- */
+  const gTerm   = new THREE.Group();
+  const matTerm = new THREE.MeshStandardMaterial({
+    color: COL.amarillo, emissive: COL.amarillo, emissiveIntensity: 1.2, roughness: 0.3
+  });
+  const terminalEnds = [
+    new THREE.Vector3(10.5,  0.75,  0.50),
+    new THREE.Vector3(10.7, -0.10, -0.20),
+    new THREE.Vector3(10.4, -0.80,  0.45)
+  ];
+  terminalEnds.forEach(end => {
+    const start = new THREE.Vector3(9.4, 0, 0);
+    const mid   = start.clone().lerp(end, 0.5).add(new THREE.Vector3(0, 0.16, 0));
+    gTerm.add(tubeFromPoints([start, mid, end], 0.09, matTerm, 16, 8));
+
+    const bouton = new THREE.Mesh(new THREE.SphereGeometry(0.20, 16, 12), matTerm);
+    bouton.position.copy(end);
+    gTerm.add(bouton);
+    addGlow(gTerm, end, COL.amarillo, 1.2, 0.7);
+  });
+  registerComponent(gTerm, 'terminales');
+  bioRoot.add(gTerm);
+
+  /* ---------- 3.8 SINAPSIS ---------- */
+  const gSinapsis   = new THREE.Group();
+  const matHendidura = new THREE.MeshStandardMaterial({
+    color: 0xffffff, emissive: COL.cian, emissiveIntensity: 0.9,
+    transparent: true, opacity: 0.35, side: THREE.DoubleSide, roughness: 0.4
+  });
+  const hendidura = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.05, 1.05, 0.1, 24, 1, true), matHendidura
+  );
+  hendidura.rotation.z = Math.PI / 2;
+  hendidura.position.set(11.15, 0, 0);
+  gSinapsis.add(hendidura);
+
+  const matPost = new THREE.MeshStandardMaterial({
+    color: 0x00c8ff, emissive: 0x0088cc, emissiveIntensity: 0.6, roughness: 0.4
+  });
+  const post = new THREE.Mesh(new THREE.SphereGeometry(0.45, 20, 16), matPost);
+  post.position.set(11.85, 0, 0);
+  gSinapsis.add(post);
+  gSinapsis.add(tubeFromPoints([
+    new THREE.Vector3(11.85, 0, 0),
+    new THREE.Vector3(12.45, 0.10, 0),
+    new THREE.Vector3(12.95, 0.20, 0)
+  ], 0.14, matPost, 12, 8));
+  registerComponent(gSinapsis, 'sinapsis');
+  bioRoot.add(gSinapsis);
+
+})();
+
+
+/* ================================================================
+   4. NEURONA ARTIFICIAL  (derecha, magenta/azul + amarillo)
+   ================================================================ */
+
+const artRoot = new THREE.Group();
+artRoot.position.set(9.5, 0, 0);
+scene.add(artRoot);
+
+/** Posiciones locales de las entradas (reutilizadas por la animación). */
+const inputPositions = [
+  new THREE.Vector3(-4.6,  1.8,  0.4),
+  new THREE.Vector3(-4.9,  0.0,  0.0),
+  new THREE.Vector3(-4.6, -1.8, -0.4)
+];
+const weightCurves = [];   // curvas entrada_i → Σ (para animar los números)
+
+(function buildArtNeuron(){
+
+  /* ---------- 4.1 ENTRADAS ---------- */
+  const gEntradas   = new THREE.Group();
+  const matEntrada  = new THREE.MeshStandardMaterial({
+    color: COL.azul, emissive: COL.azul, emissiveIntensity: 1.2,
+    roughness: 0.25, metalness: 0.4
+  });
+  const etiquetasEntrada = ['x₁', 'x₂', 'x₃'];
+
+  inputPositions.forEach((p, i) => {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(0.34, 24, 18), matEntrada);
+    s.position.copy(p);
+    gEntradas.add(s);
+    addGlow(gEntradas, p, COL.azul, 1.5, 0.75);
+
+    const lb = makeLabel(etiquetasEntrada[i], '#9fd0ff', { fontPx: 96, scale: 0.8 });
+    lb.position.copy(p).add(new THREE.Vector3(-0.85, 0.32, 0));
+    gEntradas.add(lb);
+  });
+  registerComponent(gEntradas, 'entradas');
+  artRoot.add(gEntradas);
+
+  /* ---------- 4.2 PESOS SINÁPTICOS (grosor ∝ |w|) ---------- */
+  const gPesos = new THREE.Group();
+  const pesos  = [0.80, -0.50, 0.35];
+  const etiquetasPeso = ['w₁', 'w₂', 'w₃'];
+
+  inputPositions.forEach((p, i) => {
+    const w      = pesos[i];
+    const color  = w >= 0 ? COL.amarillo : COL.rojo;
+    const mat    = new THREE.MeshStandardMaterial({
+      color, emissive: color, emissiveIntensity: 0.9, roughness: 0.4
+    });
+
+    const mid   = p.clone().lerp(new THREE.Vector3(0, 0, 0), 0.5)
+                   .add(new THREE.Vector3(0, (i - 1) * 0.35, 0));
+    const curve = new THREE.QuadraticBezierCurve3(p.clone(), mid, new THREE.Vector3(0, 0, 0));
+    weightCurves.push(curve);
+
+    const radio = 0.035 + Math.abs(w) * 0.10;   // el grosor codifica la importancia
+    gPesos.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, radio, 8, false), mat));
+
+    const lb = makeLabel(etiquetasPeso[i], w >= 0 ? '#ffd700' : '#ff8fa3', { fontPx: 86, scale: 0.7 });
+    lb.position.copy(curve.getPoint(0.5)).add(new THREE.Vector3(0, 0.45, 0));
+    gPesos.add(lb);
+  });
+  registerComponent(gPesos, 'pesos');
+  artRoot.add(gPesos);
+
+  /* ---------- 4.3 SUMATORIA PONDERADA (Σ) ---------- */
+  const gSumatoria = new THREE.Group();
+  const matSigma   = new THREE.MeshStandardMaterial({
+    color: COL.magenta, emissive: COL.magenta, emissiveIntensity: 1.4,
+    roughness: 0.2, metalness: 0.5
+  });
+  const sigmaNode = new THREE.Mesh(new THREE.IcosahedronGeometry(0.8, 2), matSigma);
+  gSumatoria.add(sigmaNode);
+
+  const matAnillo = new THREE.MeshBasicMaterial({
+    color: COL.magenta, transparent: true, opacity: 0.5
+  });
+  const anillo1 = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.03, 8, 48), matAnillo);
+  anillo1.rotation.x = Math.PI / 2;
+  gSumatoria.add(anillo1);
+  const anillo2 = anillo1.clone();
+  anillo2.rotation.set(Math.PI / 2, 0, Math.PI / 3);
+  gSumatoria.add(anillo2);
+
+  const lbSigma = makeLabel('Σ', '#ff9dff', { fontPx: 110, scale: 1.0 });
+  lbSigma.position.set(0, 1.4, 0);
+  gSumatoria.add(lbSigma);
+
+  // Tubo Σ → compuerta de activación
+  const matEnlace = new THREE.MeshStandardMaterial({
+    color: COL.magenta, emissive: COL.magenta, emissiveIntensity: 0.7, roughness: 0.4
+  });
+  gSumatoria.add(tubeFromPoints([
+    new THREE.Vector3(0.85, 0, 0),
+    new THREE.Vector3(1.9, 0, 0),
+    new THREE.Vector3(2.6, 0, 0)
+  ], 0.085, matEnlace, 16, 8));
+
+  registerComponent(gSumatoria, 'sumatoria');
+  artRoot.add(gSumatoria);
+
+  /* ---------- 4.4 SESGO (bias) ---------- */
+  const gSesgo   = new THREE.Group();
+  const matSesgo = new THREE.MeshStandardMaterial({
+    color: COL.amarillo, emissive: COL.amarillo, emissiveIntensity: 1.1, roughness: 0.35
+  });
+  const biasPos  = new THREE.Vector3(0.1, -1.55, 0.95);
+  const biasNode = new THREE.Mesh(new THREE.SphereGeometry(0.26, 18, 14), matSesgo);
+  biasNode.position.copy(biasPos);
+  gSesgo.add(biasNode);
+  gSesgo.add(tubeFromPoints([
+    biasPos,
+    biasPos.clone().lerp(new THREE.Vector3(0, 0, 0), 0.55),
+    new THREE.Vector3(0, 0, 0)
+  ], 0.05, matSesgo, 12, 6));
+
+  const lbBias = makeLabel('b', '#ffd700', { fontPx: 90, scale: 0.6 });
+  lbBias.position.copy(biasPos).add(new THREE.Vector3(-0.55, -0.05, 0));
+  gSesgo.add(lbBias);
+  registerComponent(gSesgo, 'sesgo');
+  artRoot.add(gSesgo);
+
+  /* ---------- 4.5 COMPUERTA DE ACTIVACIÓN (ReLU) ---------- */
+  const gActivacion = new THREE.Group();
+  const GATE_X = 3;
+
+  // Portal (aro) en el plano Y-Z: el dato "atraviesa" la compuerta
+  const matPortal = new THREE.MeshStandardMaterial({
+    color: COL.amarillo, emissive: COL.amarillo, emissiveIntensity: 1.3,
+    roughness: 0.25, metalness: 0.6
+  });
+  const portal = new THREE.Mesh(new THREE.TorusGeometry(1.32, 0.07, 10, 48), matPortal);
+  portal.rotation.y = Math.PI / 2;
+  portal.position.set(GATE_X, 0, 0);
+  gActivacion.add(portal);
+
+  // Membrana translúcida dentro del portal
+  const matMembrana = new THREE.MeshBasicMaterial({
+    color: COL.amarillo, transparent: true, opacity: 0.09, side: THREE.DoubleSide
+  });
+  const membrana = new THREE.Mesh(new THREE.CircleGeometry(1.25, 40), matMembrana);
+  membrana.rotation.y = Math.PI / 2;
+  membrana.position.set(GATE_X, 0, 0);
+  gActivacion.add(membrana);
+
+  // Curva ReLU dibujada dentro del portal (plano Y-Z)
+  const reluPts = [];
+  for (let i = 0; i <= 22; i++){
+    const u = -1.15 + (2.30 * i / 22);
+    reluPts.push(new THREE.Vector3(GATE_X + 0.05, u, Math.max(0, u) * 0.95));
+  }
+  const reluLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(reluPts),
+    new THREE.LineBasicMaterial({ color: 0xffffff })
+  );
+  gActivacion.add(reluLine);
+
+  const lbReLU = makeLabel('ReLU', '#ffe27a', { fontPx: 78, scale: 0.85 });
+  lbReLU.position.set(GATE_X, 1.85, 0);
+  gActivacion.add(lbReLU);
+
+  registerComponent(gActivacion, 'activacion');
+  artRoot.add(gActivacion);
+
+  /* ---------- 4.6 SALIDA (ŷ) ---------- */
+  const gSalida   = new THREE.Group();
+  const matSalida = new THREE.MeshStandardMaterial({
+    color: 0xffffff, emissive: COL.magenta, emissiveIntensity: 1.6,
+    roughness: 0.15, metalness: 0.6
+  });
+  const outNode = new THREE.Mesh(new THREE.SphereGeometry(0.5, 28, 20), matSalida);
+  outNode.position.set(5.6, 0, 0);
+  gSalida.add(outNode);
+  addGlow(gSalida, new THREE.Vector3(5.6, 0, 0), COL.magenta, 2.6, 0.85);
+
+  gSalida.add(tubeFromPoints([
+    new THREE.Vector3(3.3, 0, 0),
+    new THREE.Vector3(4.5, 0, 0),
+    new THREE.Vector3(5.1, 0, 0)
+  ], 0.09, matSalida, 16, 8));
+
+  const lbSalida = makeLabel('ŷ', '#ffb3ff', { fontPx: 96, scale: 0.9 });
+  lbSalida.position.set(5.6, 1.1, 0);
+  gSalida.add(lbSalida);
+  registerComponent(gSalida, 'salida');
+  artRoot.add(gSalida);
+
+  /* ---------- 4.7 BACKPROPAGATION ---------- */
+  const gBackprop   = new THREE.Group();
+  const matBackprop = new THREE.MeshStandardMaterial({
+    color: COL.naranja, emissive: COL.naranja, emissiveIntensity: 0.9,
+    transparent: true, opacity: 0.75, roughness: 0.5
+  });
+  const bpCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(5.6, 0.7, 0),
+    new THREE.Vector3(5.2, 3.6, -0.8),
+    new THREE.Vector3(0.5, 4.6, -1.6),
+    new THREE.Vector3(-4.4, 3.2, -0.8),
+    new THREE.Vector3(-4.7, 2.2, 0.4)
+  ]);
+  gBackprop.add(new THREE.Mesh(new THREE.TubeGeometry(bpCurve, 60, 0.045, 8, false), matBackprop));
+
+  // Flechas que indican el sentido inverso del gradiente
+  for (let i = 1; i <= 5; i++){
+    const u    = i / 6;
+    const p    = bpCurve.getPointAt(u);
+    const tang = bpCurve.getTangentAt(u).negate();
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.42, 10), matBackprop);
+    cone.position.copy(p);
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tang);
+    gBackprop.add(cone);
+  }
+
+  const lbBackprop = makeLabel('backprop', '#ffb066', { fontPx: 70, scale: 1.1 });
+  lbBackprop.position.set(0.5, 5.3, -1.6);
+  gBackprop.add(lbBackprop);
+  registerComponent(gBackprop, 'backprop');
+  artRoot.add(gBackprop);
+
+})();
+
+
+/* ================================================================
+   5. INTERACCIÓN: HOVER, CLIC, PANEL, FOCO DE CÁMARA
+   ================================================================ */
+
+const raycaster  = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2(-2, -2);
+
+const panel       = document.getElementById('panel');
+const panelBody   = document.getElementById('panel-body');
+const panelClose  = document.getElementById('panel-close');
+const tooltipEl   = document.getElementById('tooltip');
+
+let selectedKey = null;
+let hoveredKey  = null;
+
+/* ---------- 5.1 Atenuar / restaurar componentes ---------- */
+function applyHighlight(activeKey){
+  compMaterials.forEach((mats, key) => {
+    const on = (activeKey === null || key === activeKey);
+    mats.forEach(m => {
+      m.opacity    = on ? m.userData.baseOpacity : Math.min(0.07, m.userData.baseOpacity);
+      m.depthWrite = on ? m.userData.baseDepthWrite : false;
+      if (m.userData.baseEmissive !== null){
+        m.emissiveIntensity = on ? m.userData.baseEmissive : m.userData.baseEmissive * 0.1;
+      }
+    });
+  });
+}
+
+/* ---------- 5.2 Hover ---------- */
+function setHover(key){
+  if (hoveredKey === key) return;
+
+  // Restaurar el brillo del componente anterior
+  if (hoveredKey && compMaterials.has(hoveredKey) && selectedKey !== hoveredKey){
+    compMaterials.get(hoveredKey).forEach(m => {
+      if (m.userData.baseEmissive !== null) m.emissiveIntensity = m.userData.baseEmissive;
+    });
+  }
+
+  hoveredKey = key;
+
+  // Realzar el nuevo (solo si no hay una selección activa sobre otro componente)
+  if (key && compMaterials.has(key) && selectedKey !== key){
+    compMaterials.get(key).forEach(m => {
+      if (m.userData.baseEmissive !== null) m.emissiveIntensity = m.userData.baseEmissive * 1.9;
+    });
+  }
+
+  document.body.style.cursor = key ? 'pointer' : 'grab';
+}
+
+/* ---------- 5.3 Panel de información ---------- */
+function openPanel(key){
+  const d = INFO[key];
+  if (!d) return;
+  const esBio = d.sistema === 'bio';
+
+  panelBody.innerHTML = `
+    <div class="p-badge ${esBio ? 'bio' : 'art'}">
+      ${esBio ? '🧬 BIOLÓGICO' : '🤖 ARTIFICIAL'}
+    </div>
+    <h2 class="p-title">${d.emoji} ${d.nombre}</h2>
+    <p class="p-func">${d.funcion}</p>
+    <h3 class="p-h3">🔬 Características</h3>
+    <ul class="p-list">${d.caracteristicas.map(c => `<li>${c}</li>`).join('')}</ul>
+    <div class="p-energy">
+      <div class="p-energy-head">⚡ Consumo energético</div>
+      <p>${d.consumo}</p>
+    </div>
+  `;
+
+  panel.classList.add('open');
+  panel.setAttribute('aria-hidden', 'false');
+}
+
+function closePanel(){
+  panel.classList.remove('open');
+  panel.setAttribute('aria-hidden', 'true');
+  selectedKey = null;
+  applyHighlight(null);
+  resetView();
+}
+
+/* ---------- 5.4 Foco suave de cámara ---------- */
+let camAnim = null;
+
+function animateCameraTo(pos, look, dur = 0.9){
+  camAnim = {
+    p0: camera.position.clone(), p1: pos.clone(),
+    t0: controls.target.clone(), t1: look.clone(),
+    t: 0, dur
+  };
+}
+
+function updateCameraAnim(dt){
+  if (!camAnim) return;
+  camAnim.t = Math.min(camAnim.t + dt / camAnim.dur, 1);
+  const k = 1 - Math.pow(1 - camAnim.t, 3);          // ease-out cúbico
+  camera.position.lerpVectors(camAnim.p0, camAnim.p1, k);
+  controls.target.lerpVectors(camAnim.t0, camAnim.t1, k);
+  if (camAnim.t >= 1) camAnim = null;
+}
+
+function focusOn(object){
+  const box    = new THREE.Box3().setFromObject(object);
+  const center = box.getCenter(new THREE.Vector3());
+  const size   = Math.max(box.getSize(new THREE.Vector3()).length(), 1.2);
+  const dist   = THREE.MathUtils.clamp(size * 1.45, 8, 44);
+
+  const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
+  if (dir.lengthSq() < 0.01) dir.set(0, 0.3, 1);
+  dir.normalize();
+
+  animateCameraTo(center.clone().add(dir.multiplyScalar(dist)), center);
+}
+
+/* ---------- 5.5 Vista "por defecto" (encuadre de ambas neuronas) ---------- */
+const defaultTarget  = new THREE.Vector3(0, 0, 0);
+let   defaultCamPos  = new THREE.Vector3();
+
+function computeFitDistance(){
+  const halfWidth = 16.5;                                     // medio ancho a cubrir
+  const vFov      = THREE.MathUtils.degToRad(camera.fov);
+  const aspect    = Math.max(camera.aspect, 0.4);
+  return Math.max(halfWidth / (Math.tan(vFov / 2) * aspect), 18);
+}
+
+function fitView(){
+  const d   = computeFitDistance();
+  const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
+  if (dir.lengthSq() < 0.01) dir.set(0, 0.3, 1);
+  dir.normalize();
+
+  const pos = controls.target.clone().add(dir.multiplyScalar(d));
+  camera.position.copy(pos);
+  defaultCamPos.copy(pos);
+  controls.update();
+}
+
+function resetView(){
+  animateCameraTo(defaultCamPos.clone(), defaultTarget.clone(), 0.95);
+}
+
+/* ---------- 5.6 Selección de componente ---------- */
+function selectComponent(key){
+  if (!key || selectedKey === key) return;
+  selectedKey = key;
+  applyHighlight(key);
+  openPanel(key);
+  const g = compGroups.get(key);
+  if (g) focusOn(g);
+}
+
+/* ---------- 5.7 Eventos de puntero sobre el lienzo ---------- */
+function updatePointerNDC(event){
+  const r = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x =  ((event.clientX - r.left) / r.width)  * 2 - 1;
+  pointerNDC.y = -((event.clientY - r.top)  / r.height) * 2 + 1;
+}
+
+/** Devuelve la intersección "efectiva" (con la regla especial del núcleo). */
+function pick(){
+  raycaster.setFromCamera(pointerNDC, camera);
+  const hits = raycaster.intersectObjects(pickables, false);
+  if (!hits.length) return null;
+
+  let hit = hits[0];
+
+  // El soma es translúcido y envuelve al núcleo: si el primer impacto es la
+  // membrana y el núcleo está justo detrás, damos prioridad al núcleo.
+  if (hit.object.userData.infoKey === 'soma'){
+    const nucleoHit = hits.find(h =>
+      h.object.userData.infoKey === 'nucleo' && (h.distance - hit.distance) < 1.8
+    );
+    if (nucleoHit) hit = nucleoHit;
+  }
+  return hit;
+}
+
+renderer.domElement.addEventListener('pointermove', (e) => {
+  updatePointerNDC(e);
+  const hit = pick();
+  const key = hit ? hit.object.userData.infoKey : null;
+
+  setHover(key);
+
+  if (key && INFO[key]){
+    tooltipEl.textContent = `${INFO[key].emoji} ${INFO[key].nombre}`;
+    tooltipEl.style.left = e.clientX + 'px';
+    tooltipEl.style.top  = e.clientY + 'px';
+    tooltipEl.classList.add('on');
+  } else {
+    tooltipEl.classList.remove('on');
+  }
+});
+
+// Distinguimos clic de arrastre (OrbitControls usa el mismo botón)
+let pointerDownPos = { x: 0, y: 0 };
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  pointerDownPos = { x: e.clientX, y: e.clientY };
+});
+
+renderer.domElement.addEventListener('pointerup', (e) => {
+  const moved = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+  if (moved > 6) return;               // fue un arrastre de cámara
+
+  updatePointerNDC(e);
+  const hit = pick();
+
+  if (!hit){
+    if (selectedKey) closePanel();
+    return;
+  }
+  selectComponent(hit.object.userData.infoKey);
+});
+
+panelClose.addEventListener('click', closePanel);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && selectedKey) closePanel();
+});
+
+// Colapsar el panel de instrucciones
+const hintEl = document.getElementById('hint');
+document.getElementById('hint-toggle').addEventListener('click', () => {
+  hintEl.classList.toggle('collapsed');
+  document.getElementById('hint-toggle')
+    .setAttribute('aria-expanded', String(!hintEl.classList.contains('collapsed')));
+});
+
+
+/* ================================================================
+   6. ANIMACIONES DE FLUJO DE INFORMACIÓN
+   ================================================================ */
+
+/* ---------- 6.1 FLUJO BIOLÓGICO ---------- */
+/*
+   Trayectoria: punta de dendrita → soma → axón → mielina → terminal → sinapsis.
+   Reutilizamos los puntos reales de una dendrita para que el recorrido
+   transcurra exactamente sobre la geometría.
+*/
+const bioCurve = (() => {
+  const d = dendritePaths[2] || [new THREE.Vector3(-4.5, 1.6, 0.4)];
+  const pts = [
+    ...d.slice().reverse(),                      // punta → soma
+    new THREE.Vector3(0, 0, 0),                  // soma
+    new THREE.Vector3(2.0, 0, 0),
+    new THREE.Vector3(5.5, 0, 0),
+    new THREE.Vector3(8.8, 0, 0),
+    new THREE.Vector3(9.8, 0.50, 0.40),
+    new THREE.Vector3(10.5, 0.75, 0.50),
+    new THREE.Vector3(11.15, 0.20, 0.20),
+    new THREE.Vector3(11.85, 0, 0)
+  ];
+  return new THREE.CatmullRomCurve3(pts);
+})();
+
+const bioFlow = { active: false, p: 0, duration: 3.0, particles: [] };
+
+(function createBioParticles(){
+  const headGeo = new THREE.SphereGeometry(0.10, 8, 8);
+  const tailGeo = new THREE.SphereGeometry(0.07, 6, 6);
+
+  const headMat = new THREE.MeshBasicMaterial({
+    color: COL.amarillo, transparent: true, opacity: 1,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  const tailMats = [1, 2, 3, 4].map(k => new THREE.MeshBasicMaterial({
+    color: 0x00ffcc, transparent: true, opacity: 0.55 / k,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  }));
+
+  for (let i = 0; i < 10; i++){
+    const head = new THREE.Mesh(headGeo, headMat);
+    head.visible = false;
+    bioRoot.add(head);
+
+    const tails = tailMats.map(m => {
+      const t = new THREE.Mesh(tailGeo, m);
+      t.visible = false;
+      bioRoot.add(t);
+      return t;
+    });
+    bioFlow.particles.push({ head, tails });
+  }
+})();
+
+function updateBioFlow(dt){
+  const parts = bioFlow.particles;
+  if (!bioFlow.active){
+    parts.forEach(p => {
+      p.head.visible = false;
+      p.tails.forEach(t => { t.visible = false; });
+    });
+    return;
+  }
+
+  bioFlow.p = (bioFlow.p + dt / bioFlow.duration) % 1;
+  const n = parts.length;
+
+  parts.forEach((p, i) => {
+    const u = (bioFlow.p + i / n) % 1;
+
+    p.head.visible = true;
+    p.head.position.copy(bioCurve.getPointAt(u));
+
+    p.tails.forEach((tail, k) => {
+      const uu = u - (k + 1) * 0.017;
+      if (uu < 0.002){ tail.visible = false; return; }
+      tail.visible = true;
+      tail.position.copy(bioCurve.getPointAt(uu));
+    });
+  });
+}
+
+/* ---------- 6.2 FLUJO ARTIFICIAL ---------- */
+/*
+   Ciclo de 4,2 s:
+     0,0–0,9 s  los 3 números recorren sus pesos hacia Σ
+     1,0–1,7 s  "Σ = 0,11" viaja hacia la compuerta de activación
+     1,7–2,4 s  "f(z) → 0,11" atraviesa la compuerta hacia la salida
+     2,4–3,4 s  "ŷ = 0,11" flota sobre el nodo de salida
+     3,4–4,2 s  pausa
+*/
+const artFlow = { active: false, t: 0, cycle: 4.2, sprites: {} };
+
+(function createArtFlowSprites(){
+  const S = artFlow.sprites;
+
+  const mkNum = (text, color) => {
+    const s = makeLabel(text, color, { fontPx: 56, scale: 1.35, canvasW: 640, canvasH: 128 });
+    s.visible = false;
+    artRoot.add(s);
+    return s;
+  };
+
+  S.nums = [
+    mkNum('0.5 × 0.8 = 0.40',  '#ffe27a'),
+    mkNum('0.7 × (−0.5) = −0.35', '#ffb3c8'),
+    mkNum('0.2 × 0.3 = 0.06',  '#ffe27a')
+  ];
+  S.sum = mkNum('Σ = 0.11', '#ff9dff');
+  S.act = mkNum('f(z) → 0.11', '#ffffff');
+  S.out = mkNum('ŷ = 0.11', '#ffb3ff');
+})();
+
+const GATE_POS   = new THREE.Vector3(3.0, 0, 0);
+const OUTPUT_POS = new THREE.Vector3(5.6, 0, 0);
+const SIGMA_POS  = new THREE.Vector3(0, 0, 0);
+
+function updateArtFlow(dt){
+  const S = artFlow.sprites;
+
+  const hideAll = () => {
+    S.nums.forEach(s => { s.visible = false; });
+    S.sum.visible = false;
+    S.act.visible = false;
+    S.out.visible = false;
+  };
+
+  if (!artFlow.active){ hideAll(); return; }
+
+  artFlow.t += dt;
+  const T = artFlow.t % artFlow.cycle;
+
+  hideAll();
+
+  /* Fase 1 — entradas → Σ */
+  if (T < 1.05){
+    const u = THREE.MathUtils.clamp(T / 0.9, 0, 1);
+    S.nums.forEach((s, i) => {
+      s.visible = true;
+      s.position.copy(weightCurves[i].getPointAt(u));
+      s.material.opacity = T < 0.9 ? 1 : Math.max(0, 1 - (T - 0.9) / 0.15);
+    });
+  }
+
+  /* Fase 2 — Σ → compuerta */
+  if (T >= 1.0 && T < 1.8){
+    const u = THREE.MathUtils.clamp((T - 1.0) / 0.7, 0, 1);
+    S.sum.visible = true;
+    S.sum.position.lerpVectors(SIGMA_POS, GATE_POS, u);
+    S.sum.material.opacity = 1 - Math.max(0, (u - 0.75) / 0.25);
+  }
+
+  /* Fase 3 — compuerta → salida */
+  if (T >= 1.7 && T < 2.5){
+    const u = THREE.MathUtils.clamp((T - 1.7) / 0.7, 0, 1);
+    S.act.visible = true;
+    S.act.position.lerpVectors(GATE_POS, OUTPUT_POS, u);
+    S.act.material.opacity = 1 - Math.max(0, (u - 0.8) / 0.2);
+  }
+
+  /* Fase 4 — salida flotante */
+  if (T >= 2.4 && T < 3.4){
+    const u = THREE.MathUtils.clamp((T - 2.4) / 1.0, 0, 1);
+    S.out.visible = true;
+    S.out.position.set(OUTPUT_POS.x, OUTPUT_POS.y + 0.9 + u * 0.9, OUTPUT_POS.z);
+    S.out.material.opacity = Math.min(1, (1 - u) * 1.6);
+  }
+}
+
+
+/* ================================================================
+   7. PANEL COMPARATIVO DE MÉTRICAS
+   ================================================================
+   Las longitudes de barra son una escala LOGARÍTMICA NORMALIZADA
+   (no una proporción aritmética): sirven para comparar de un vistazo.
+   ================================================================ */
+
+const METRICS = [
+  {
+    icon: '⏱️',
+    label: 'Velocidad de operación',
+    bio:   { texto: '≈100 Hz',  ancho: 22 },
+    art:   { texto: '≈1 GHz',   ancho: 92 },
+    ratioNum: 10000000,
+    tooltip: 'Neurona biológica: 1–200 Hz típicos (hasta ~1 kHz en algunas interneuronas). Silicio: 10⁹ Hz.'
+  },
+  {
+    icon: '⚡',
+    label: 'Energía por operación',
+    bio:   { texto: '≈10⁻¹² J', ancho: 10 },
+    art:   { texto: '≈10⁻⁹ J',  ancho: 80 },
+    ratioNum: 1000,
+    tooltip: '≈1.000× más energía por operación individual en GPU frente a un potencial postsináptico biológico.'
+  },
+  {
+    icon: '🕸️',
+    label: 'Conexiones por unidad',
+    bio:   { texto: '1.000–10.000', ancho: 100 },
+    art:   { texto: 'según arquitectura', ancho: 45 },
+    ratioNum: 10,
+    tooltip: 'Una neurona biológica forma 1.000–10.000 sinapsis. En una capa densa artificial, el número depende de la arquitectura.'
+  },
+  {
+    icon: '🌱',
+    label: 'Eficiencia energética global',
+    bio:   { texto: '≈5×10¹⁰ ops/J', ancho: 92 },
+    art:   { texto: '≈3×10⁹ ops/J',  ancho: 26 },
+    ratioNum: 16,
+    tooltip: 'El cerebro es ~16× más eficiente por operación efectiva. El silicio compensa en parte con su enorme frecuencia.'
+  }
+];
+
+const metricsEl = document.getElementById('metrics');
+
+(function buildMetrics(){
+  metricsEl.innerHTML = METRICS.map((m, i) => `
+    <div class="metric" data-i="${i}" title="${m.tooltip}">
+      <div class="m-head">
+        <span class="m-label">${m.icon} ${m.label}</span>
+        <span class="m-ratio">—</span>
+      </div>
+      <div class="m-row">
+        <span class="m-tag bio">BIO</span>
+        <div class="m-bar bio"><i style="--w:0%"></i></div>
+        <span class="m-val">${m.bio.texto}</span>
+      </div>
+      <div class="m-row">
+        <span class="m-tag art">IA</span>
+        <div class="m-bar art"><i style="--w:0%"></i></div>
+        <span class="m-val">${m.art.texto}</span>
+      </div>
+    </div>
+  `).join('');
+})();
+
+/** Contador numérico animado para la insignia de ratio. */
+function animateRatio(el, target){
+  const inicio = performance.now();
+  const dur    = 1200;
+  function paso(now){
+    const k = Math.min((now - inicio) / dur, 1);
+    const v = target * (1 - Math.pow(1 - k, 3));
+    el.textContent = Math.round(v).toLocaleString('es-ES') + '×';
+    if (k < 1) requestAnimationFrame(paso);
+  }
+  requestAnimationFrame(paso);
+}
+
+function setMetricsLive(on){
+  metricsEl.classList.toggle('live', on);
+
+  METRICS.forEach((m, i) => {
+    const card = metricsEl.querySelector(`.metric[data-i="${i}"]`);
+    const bars = card.querySelectorAll('.m-bar i');
+    bars[0].style.setProperty('--w', on ? m.bio.ancho + '%' : '0%');
+    bars[1].style.setProperty('--w', on ? m.art.ancho + '%' : '0%');
+
+    const ratioEl = card.querySelector('.m-ratio');
+    if (on){
+      animateRatio(ratioEl, m.ratioNum);
+    } else {
+      ratioEl.textContent = '—';
+    }
+  });
+}
+
+
+/* ================================================================
+   8. CONTROLES DE ANIMACIÓN + BUCLE DE RENDER
+   ================================================================ */
+
+const btnBio = document.getElementById('btn-bio');
+const btnArt = document.getElementById('btn-art');
+const btnCmp = document.getElementById('btn-cmp');
+
+function setBioFlow(on){
+  bioFlow.active = on;
+  btnBio.classList.toggle('active', on);
+  btnBio.setAttribute('aria-pressed', String(on));
+  btnBio.textContent = on ? '⏹️ Detener flujo biológico' : '🔋 Activar flujo biológico';
+}
+
+function setArtFlow(on){
+  artFlow.active = on;
+  if (on) artFlow.t = 0;
+  btnArt.classList.toggle('active', on);
+  btnArt.setAttribute('aria-pressed', String(on));
+  btnArt.textContent = on ? '⏹️ Detener flujo artificial' : '⚡ Activar flujo artificial';
+}
+
+btnBio.addEventListener('click', () => setBioFlow(!bioFlow.active));
+btnArt.addEventListener('click', () => setArtFlow(!artFlow.active));
+
+btnCmp.addEventListener('click', () => {
+  const activar = !(bioFlow.active && artFlow.active);
+  setBioFlow(activar);
+  setArtFlow(activar);
+  setMetricsLive(activar);
+  btnCmp.classList.toggle('active', activar);
+  btnCmp.setAttribute('aria-pressed', String(activar));
+  btnCmp.textContent = activar ? '⏹️ Detener comparación' : '⚖️ Comparar en paralelo';
+});
+
+/* ---------- Overlay de inicio ---------- */
+document.getElementById('start-btn').addEventListener('click', () => {
+  document.getElementById('intro').classList.add('hidden');
+});
+
+/* ---------- Redimensionado ---------- */
+let resizeTimer;
+window.addEventListener('resize', () => {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(w, h);
+  composer.setSize(w, h);
+  bloomPass.setSize(w, h);
+
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (!selectedKey) fitView();      // reencuadre solo si no hay foco activo
+  }, 160);
+});
+
+/* ---------- Bucle principal ---------- */
+const clock = new THREE.Clock();
+let elapsed = 0;
+
+function animate(){
+  requestAnimationFrame(animate);
+
+  const dt = Math.min(clock.getDelta(), 0.05);
+  elapsed += dt;
+
+  controls.update();
+  updateCameraAnim(dt);
+
+  updateBioFlow(dt);
+  updateArtFlow(dt);
+
+  /* Micro-animaciones ambientales */
+  starField.rotation.y += dt * 0.008;
+  starField.rotation.x  = Math.sin(elapsed * 0.05) * 0.03;
+
+  const sigma = compGroups.get('sumatoria');
+  if (sigma) sigma.scale.setScalar(1 + Math.sin(elapsed * 2.2) * 0.035);
+
+  const salida = compGroups.get('salida');
+  if (salida) salida.scale.setScalar(1 + Math.sin(elapsed * 1.7 + 1.2) * 0.03);
+
+  bloomPass.strength = 0.72 + Math.sin(elapsed * 0.9) * 0.06;
+
+  composer.render();
+}
+
+/* ---------- Arranque ---------- */
+fitView();
+controls.update();
+animate();
+
+console.log(
+  '%c🧠 NEURO-SIM 3D listo',
+  'color:#00ffff; font-family:Orbitron,sans-serif; font-size:14px; font-weight:700;'
+);
+</script>
+</body>
+</html>
